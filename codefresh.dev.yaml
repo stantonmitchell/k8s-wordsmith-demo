@@ -190,4 +190,15 @@ steps:
           - ${{build_cfdemoweb_image.imageId}}:
             - integration_tests: failed
 
-  # By default we don't do a cleanup to mock "production"
+   ## Cleanup test
+  integration_cleanup:
+      title: "[CLEANUP] Integration test"
+      type: "freestyle"
+      image: "bitnami/kubectl:1.21"
+      working_directory: '${{integration_clone}}'
+      fail_fast: true
+      commands:
+        - "kubectl config use-context GCP"
+        - "export SETBRANCH=`cat branchnameTMP.txt`"
+        - "kubectl delete ns $SETBRANCH"
+        - "rm -rf branchnameTMP.txt"
