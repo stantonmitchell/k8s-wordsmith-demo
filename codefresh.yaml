@@ -13,7 +13,6 @@ stages:
   - "helm_deploy" # Deploys the primary application using Helm
   - "integration_clone" # Clones the K8 playground repo to use the ./cfdemo/curlOnly-manifest.yaml
   - "integration_deploy" # Deploys a cURL pod to perform integration test
-  - "integration_cleanup" # Cleansup the cURL pod
 
 steps:
 
