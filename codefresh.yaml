@@ -8,148 +8,157 @@ stages:
   - "push_cfdemoweb_image" # Pushes the web image
   - "push_cfdemodb_image" # Pushes the db image
   - "push_cfdemowords_image" # Pushes the words image
-  - "deploy_cfdemoweb_image" # Deploys the web image
-  - "deploy_cfdemodb_image" # Deploys the db image
-  - "deploy_cfdemowords_image" # Deploys the words image
+  - "namespace_create" # Creates Namespace
+  - "helm_store" # Stores the Helm chart for the primary application
+  - "helm_deploy" # Deploys the primary application using Helm
   - "integration_clone" # Clones the K8 playground repo to use the ./cfdemo/curlOnly-manifest.yaml
   - "integration_deploy" # Deploys a cURL pod to perform integration test
   - "integration_cleanup" # Cleansup the cURL pod
 
 steps:
 
+  # CLONE PRIMARY REPOSITORY
+  main_clone:
+    type: git-clone
+    title: '[CLONE] Primary repository'
+    description: 'Cloning primary repository'
+    repo: stantonmitchell/k8s-wordsmith-demo
+    revision: ${{CF_BRANCH}}
+    git: github
+    fail_fast: true
+
   # UNIT TEST
   perform_cfdemoweb_unit_test:
-    title: "[TEST | UNIT] stantonmitchell/cfdemo-web"
+    title: "[TEST | UNIT] vo1d/cfdemo-web"
     image: golang:alpine
+    fail_fast: true
     working_directory: ${{main_clone}}
-    description: Performing unit tests against stantonmitchell/cfdemo-web...
+    description: Performing unit tests against vo1d/cfdemo-web...
     commands:
       - gofmt ./web/dispatcher.go
-    on_success:
-      metadata: 
-        set: 
-          - ${{build_cfdemoweb_image.imageId}}: 
-            - unit_tests: passed
-    on_failure:
-      metadata: 
-        set: 
-          - ${{build_cfdemoweb_image.imageId}}: 
-            - unit_tests: failed
   
   # IMAGE BUILDING
 
-  ## Build 'stantonmitchell/cfdemo-web' image
+  ## Build 'vo1d/cfdemo-web' image
   build_cfdemoweb_image:
-    title: "[BUILD] stantonmitchell/cfdemo-web"
+    title: "[BUILD] vo1d/cfdemo-web"
     type: build
-    description: Building the (stantonmitchell/cfdemo-web) image...
+    description: Building the (vo1d/cfdemo-web) image...
     disable_push: true
-    dockerfile: web/Dockerfile
-    image_name: stantonmitchell/cfdemo-web
+    working_directory: ${{main_clone}}/web
+    dockerfile: ./Dockerfile
+    image_name: vo1d/cfdemo-web
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
+    metadata:
+      set:
+        - unit_tests: passed
 
-  ## Build 'stantonmitchell/cfdemo-db' image
+  ## Build 'vo1d/cfdemo-db' image
   build_cfdemodb_image:
-    title: "[BUILD] stantonmitchell/cfdemo-db"
+    title: "[BUILD] vo1d/cfdemo-db"
     type: build
-    description: Building the (stantonmitchell/cfdemo-db) image...
+    description: Building the (vo1d/cfdemo-db) image...
     disable_push: true
-    dockerfile: db/Dockerfile
-    image_name: stantonmitchell/cfdemo-db
+    working_directory: ${{main_clone}}/db
+    dockerfile: ./Dockerfile
+    image_name: vo1d/cfdemo-db
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
 
-  ## Build 'stantonmitchell/cfdemo-words' image
+  ## Build 'vo1d/cfdemo-words' image
   build_cfdemowords_image:
-    title: "[BUILD] stantonmitchell/cfdemo-words"
+    title: "[BUILD] vo1d/cfdemo-words"
     type: build
-    description: Building the (stantonmitchell/cfdemo-words) image...
+    description: Building the (vo1d/cfdemo-words) image...
     disable_push: true
-    dockerfile: words/Dockerfile
-    image_name: stantonmitchell/cfdemo-words
+    working_directory: ${{main_clone}}/words
+    dockerfile: ./Dockerfile
+    image_name: vo1d/cfdemo-words
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
 
   # IMAGE PUSHING
 
-  ## Push 'stantonmitchell/cfdemo-db' image
+  ## Push 'vo1d/cfdemo-db' image
   push_cfdemodb_image:
-    title: "[PUSH] stantonmitchell/cfdemo-db"
+    title: "[PUSH] vo1d/cfdemo-db"
     type: push
-    description: Pushing the (stantonmitchell/cfdemo-db) image...
+    description: Pushing the (vo1d/cfdemo-db) image...
     registry: Dockerhub
     candidate: ${{build_cfdemodb_image}}
-    image_name: stantonmitchell/cfdemo-db
+    image_name: vo1d/cfdemo-db
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
 
-  ## Push 'stantonmitchell/cfdemo-web' image
+  ## Push 'vo1d/cfdemo-web' image
   push_cfdemoweb_image:
-    title: "[PUSH] stantonmitchell/cfdemo-web"
+    title: "[PUSH] vo1d/cfdemo-web"
     type: push
-    description: Pushing the (stantonmitchell/cfdemo-web) image...
+    description: Pushing the (vo1d/cfdemo-web) image...
     registry: Dockerhub
     candidate: ${{build_cfdemoweb_image}}
-    image_name: stantonmitchell/cfdemo-web
+    image_name: vo1d/cfdemo-web
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
   
-  ## Push 'stantonmitchell/cfdemo-words' image
+  ## Push 'vo1d/cfdemo-words' image
   push_cfdemowords_image:
-    title: "[PUSH] stantonmitchell/cfdemo-words"
+    title: "[PUSH] vo1d/cfdemo-words"
     type: push
-    description: Pushing the (stantonmitchell/cfdemo-words) image...
+    description: Pushing the (vo1d/cfdemo-words) image...
     registry: Dockerhub
     candidate: ${{build_cfdemowords_image}}
-    image_name: stantonmitchell/cfdemo-words
+    image_name: vo1d/cfdemo-words
     tag: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
 
-  # APPLICATION DEPLOYMENT
+  # CREATE NAMESPACE
+  namespace_create:
+    title: "[NAMESPACE] Create namespace: 'cfdemo-${{CF_BRANCH}}-${{CF_SHORT_REVISION}}'"
+    type: "freestyle"
+    fail_fast: true
+    image: "bitnami/kubectl:1.21"
+    working_directory: '${{main_clone}}'
+    commands:
+      - "kubectl config use-context GCP"
+      - "export DASH=`echo '-'`; export SETBRANCH=`echo cfdemo$DASH$CF_BRANCH$DASH$CF_SHORT_REVISION`"
+      - "kubectl create ns $SETBRANCH"
+      - "kubectl get ns"
 
-  ## Deploy Web application
-  deploy_cfdemoweb_image:
-    title: "[DEPLOY] stantonmitchell/cfdemo-web"
-    type: deploy
-    kind: kubernetes 
-    cluster: GCP
-    service: web
-    candidate: 
-      image: ${{build_cfdemoweb_image}}
-      registry: Dockerhub
-    namespace: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
-    description: Deploying the (stantonmitchell/cfdemo-web) image...
-    registry: Dockerhub
+  # HELM
 
-  ## Deploy DB application  
-  deploy_cfdemodb_image:
-    title: "[DEPLOY] stantonmitchell/cfdemo-db"
-    type: deploy
-    kind: kubernetes 
-    cluster: GCP
-    service: db
-    candidate: 
-      image: ${{build_cfdemodb_image}}
-      registry: Dockerhub
-    namespace: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
-    description: Deploying the (stantonmitchell/cfdemo-db) image...
-    registry: Dockerhub
+  ## Store Helm chart
+  helm_store:
+    title: '[HELM | STORE] Primary Application Chart'
+    description: 'Storing Helm chart for primary application'
+    type: helm
+    working_directory: ${{main_clone}}
+    arguments:
+      action: push
+      chart_repo_url: 'cm://h.cfcr.io/cyber76/cfdemo'
+      helm_version: 3.0.2
+      chart_name: charts/k8s-wordsmith
+      kube_context: GCP
 
-  ## Deploy Words application
-  deploy_cfdemowords_image:
-    title: "[DEPLOY] stantonmitchell/cfdemo-words"
-    type: deploy
-    kind: kubernetes 
-    cluster: GCP
-    service: words
-    candidate: 
-      image: ${{build_cfdemowords_image}}
-      registry: Dockerhub
-    namespace: ${{CF_BRANCH}}-${{CF_SHORT_REVISION}}
-    description: Deploying the (stantonmitchell/cfdemo-words) image...
-    registry: Dockerhub
+  ## Deploy Application
+  helm_deploy:
+    type: helm
+    title: '[HELM | DEPLOY] Deploy using Helm'
+    description: 'Deploy our primary application with Helm'
+    working_directory: ${{main_clone}}
+    arguments:
+      action: install
+      chart_name: charts/k8s-wordsmith
+      release_name: k8s-wordsmith
+      helm_version: 3.0.2
+      kube_context: GCP
+      namespace: 'cfdemo-${{CF_BRANCH}}-${{CF_SHORT_REVISION}}'
+      custom_values:
+        - 'web.tag=${{CF_BRANCH}}-${{CF_SHORT_REVISION}}'
+        - 'db.tag=${{CF_BRANCH}}-${{CF_SHORT_REVISION}}'
+        - 'words.tag=${{CF_BRANCH}}-${{CF_SHORT_REVISION}}'
 
   # INTEGRATION TESTING
 
   ## Clone K8 Playground Repo
   integration_clone:
     type: git-clone
-    title: Repo clone
+    title: '[CLONE] Playground Repository'
     description: 'Cloning cURL repository'
     repo: stantonmitchell/k8playground
     revision: main
@@ -158,26 +167,36 @@ steps:
 
    ## Deploy cURL and Test
   integration_deploy:
-    title: "Running integration test"
+    title: "[TEST | INTEGRATION] Deploying and running"
     type: "freestyle"
     fail_fast: false
     image: "bitnami/kubectl:1.21"
     working_directory: '${{integration_clone}}'
     commands:
       - "kubectl config use-context GCP"
-      - "export DASH=`echo '-'`; export SETBRANCH=`echo $CF_BRANCH$DASH$CF_SHORT_REVISION`"
-      - "kubectl create ns $SETBRANCH"
-      - "kubectl apply -f cfdemo/manifest.yaml -n $SETBRANCH"
+      - "export DASH=`echo '-'`; export SETBRANCH=`echo cfdemo$DASH$CF_BRANCH$DASH$CF_SHORT_REVISION`"
+      - "kubectl apply -f cfdemo/curlOnly-manifest.yaml -n $SETBRANCH"
       - "echo 'Sleeping for 10s'; sleep 10s"
-      - 'SETBRANCH="$SETBRANCH"; kubectl exec deploy/curl-deployment -n $SETBRANCH -- curl nginx.$SETBRANCH.svc.cluster.local:8081 -w "%{http_code}" -s -o /dev/null'
+      - 'SETBRANCH="$SETBRANCH"; kubectl exec deploy/curl-deployment -n $SETBRANCH -- curl web.$SETBRANCH.svc.cluster.local:8081 -w "%{http_code}" -s -o /dev/null'
       - 'echo "$SETBRANCH" > branchnameTMP.txt'
+    on_success:
+      metadata:
+        set:
+          - ${{build_cfdemoweb_image.imageId}}:
+            - integration_tests: passed
+    on_failure:
+      metadata:
+        set:
+          - ${{build_cfdemoweb_image.imageId}}:
+            - integration_tests: failed
 
    ## Cleanup test
   integration_cleanup:
-      title: "Cleaning up integration test"
+      title: "[CLEANUP] Integration test"
       type: "freestyle"
       image: "bitnami/kubectl:1.21"
       working_directory: '${{integration_clone}}'
+      fail_fast: true
       commands:
         - "kubectl config use-context GCP"
         - "export SETBRANCH=`cat branchnameTMP.txt`"
