@@ -13,6 +13,7 @@ stages:
   - "helm_deploy" # Deploys the primary application using Helm
   - "integration_clone" # Clones the K8 playground repo to use the ./cfdemo/curlOnly-manifest.yaml
   - "integration_deploy" # Deploys a cURL pod to perform integration test
+  - "integration_test" # Tests using a cURL pod to perform integration test
 
 steps:
 
@@ -164,9 +165,9 @@ steps:
     git: github
     fail_fast: true
 
-   ## Deploy cURL and Test
+   ## Deploy cURL
   integration_deploy:
-    title: "[TEST | INTEGRATION] Deploying and running"
+    title: "[DEPLOY | INTEGRATION] Deploying and running"
     type: "freestyle"
     fail_fast: false
     image: "bitnami/kubectl:1.21"
@@ -176,8 +177,22 @@ steps:
       - "export DASH=`echo '-'`; export SETBRANCH=`echo cfdemo$DASH$CF_BRANCH$DASH$CF_SHORT_REVISION`"
       - "kubectl apply -f cfdemo/curlOnly-manifest.yaml -n $SETBRANCH"
       - "echo 'Sleeping for 10s'; sleep 10s"
+
+  ## Run integration test
+  integration_test:
+    title: "[TEST | INTEGRATION] Deploying and running"
+    type: "freestyle"
+    fail_fast: false
+    image: "bitnami/kubectl:1.21"
+    working_directory: '${{integration_clone}}'
+    commands:
+      - "export DASH=`echo '-'`; export SETBRANCH=`echo cfdemo$DASH$CF_BRANCH$DASH$CF_SHORT_REVISION`"
       - 'SETBRANCH="$SETBRANCH"; kubectl exec deploy/curl-deployment -n $SETBRANCH -- curl web.$SETBRANCH.svc.cluster.local:8081 -w "%{http_code}" -s -o /dev/null'
-      - 'echo "$SETBRANCH" > branchnameTMP.txt'
+      - "kubectl delete -f cfdemo/curlOnly-manifest.yaml -n $SETBRANCH"
+    retry:
+      maxAttempts: 3
+      delay: 5
+      exponentialFactor: 2
     on_success:
       metadata:
         set:
@@ -188,5 +203,6 @@ steps:
         set:
           - ${{build_cfdemoweb_image.imageId}}:
             - integration_tests: failed
+    
 
   # By default we don't do a cleanup to mock "production"
